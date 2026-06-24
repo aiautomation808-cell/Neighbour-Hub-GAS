@@ -1,5 +1,5 @@
 import React from 'react';
-import { Megaphone, Calendar, HelpCircle, MapPin, SearchCheck, ShoppingBag, ShieldAlert, FileText, ArrowRight, Star, Award, Sparkles, User, BadgeCheck, FlameKindling, Info } from 'lucide-react';
+import { Megaphone, Calendar, HelpCircle, MapPin, SearchCheck, ShoppingBag, ShieldAlert, FileText, ArrowRight, Star, Award, Sparkles, BadgeCheck, FlameKindling, Info } from 'lucide-react';
 import { Post, NeighborhoodEvent, SafetyAlert, User } from '../types';
 
 interface HomeSectionProps {

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User as UserIcon, BadgeCheck, Star, Calendar, FileText, Settings, Shield, MapPin, CheckCircle, Save, Edit2 } from 'lucide-react';
+import { User as UserIcon, BadgeCheck, Star, Calendar, FileText, Settings, Shield, MapPin, CheckCircle, Save, Edit2, LogOut } from 'lucide-react';
 import { User, Post, FileAttachment } from '../types';
 
 interface ProfileSectionProps {
@@ -7,6 +7,7 @@ interface ProfileSectionProps {
   onUpdateBio: (newBio: string) => void;
   posts: Post[];
   files: FileAttachment[];
+  onLogout?: () => void;
 }
 
 export default function ProfileSection({
@@ -14,6 +15,7 @@ export default function ProfileSection({
   onUpdateBio,
   posts,
   files,
+  onLogout,
 }: ProfileSectionProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedBio, setEditedBio] = useState(currentUser.bio);
@@ -150,7 +152,7 @@ export default function ProfileSection({
 
         {/* Right Column (Stats checklist & Activity items) */}
         <div className="space-y-6">
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm text-left space-y-3">
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm text-left space-y-4">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">Sandbox Stats</h3>
 
             <div className="space-y-3 text-xs text-slate-600">
@@ -162,11 +164,21 @@ export default function ProfileSection({
                 <span className="font-semibold">Verification Status</span>
                 <span className="font-bold text-green-600">Verified ✓</span>
               </div>
-              <div className="flex justify-between items-center py-2">
+              <div className="flex justify-between items-center py-2 border-b border-slate-100">
                 <span className="font-semibold">Current Platform Role</span>
                 <span className="font-bold text-indigo-600 uppercase">{currentUser.role}</span>
               </div>
             </div>
+
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                className="w-full py-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer mt-2"
+              >
+                <LogOut size={13} />
+                <span>Log Out of NeighborHub</span>
+              </button>
+            )}
           </div>
 
           {/* Guidelines info card */}

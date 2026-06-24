@@ -26,6 +26,7 @@ import AlertsSection from './components/AlertsSection';
 import FilesSection from './components/FilesSection';
 import AdminSection from './components/AdminSection';
 import ProfileSection from './components/ProfileSection';
+import LoginPage from './components/LoginPage';
 
 // Nav icons
 import { Megaphone, Calendar, SearchCheck, HelpCircle, ShoppingBag, ShieldAlert, FileText, LayoutDashboard, UserCheck, Home } from 'lucide-react';
@@ -36,9 +37,18 @@ export default function App() {
   const [activeNeighborhood, setActiveNeighborhood] = useState<string>(SAMPLE_NEIGHBORHOODS[0]);
   const [globalSearch, setGlobalSearch] = useState('');
 
-  // Active Sandbox test user profile
-  const [currentRole, setCurrentRole] = useState<UserRole>('resident');
-  const [currentUser, setCurrentUser] = useState<User>(CURRENT_USER_PROFILES.resident);
+  // Active Sandbox test user profile and Authentication
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
+    return localStorage.getItem('nh_isLoggedIn') === 'true';
+  });
+  const [currentRole, setCurrentRole] = useState<UserRole>(() => {
+    return (localStorage.getItem('nh_currentRole') as UserRole) || 'resident';
+  });
+  const [currentUser, setCurrentUser] = useState<User>(() => {
+    const savedUser = localStorage.getItem('nh_currentUser');
+    if (savedUser) return JSON.parse(savedUser);
+    return CURRENT_USER_PROFILES.resident;
+  });
 
   // Core Data States (Initialized from localStorage if present, else default)
   const [posts, setPosts] = useState<Post[]>([]);
@@ -130,7 +140,28 @@ export default function App() {
   // Handle Role Shift
   const handleRoleChange = (role: UserRole) => {
     setCurrentRole(role);
-    setCurrentUser(CURRENT_USER_PROFILES[role]);
+    const selectedProfile = CURRENT_USER_PROFILES[role];
+    setCurrentUser(selectedProfile);
+    localStorage.setItem('nh_currentRole', role);
+    localStorage.setItem('nh_currentUser', JSON.stringify(selectedProfile));
+  };
+
+  // Handle Authentication
+  const handleLogin = (user: User) => {
+    setCurrentUser(user);
+    setCurrentRole(user.role);
+    setIsLoggedIn(true);
+    localStorage.setItem('nh_isLoggedIn', 'true');
+    localStorage.setItem('nh_currentRole', user.role);
+    localStorage.setItem('nh_currentUser', JSON.stringify(user));
+  };
+
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    localStorage.removeItem('nh_isLoggedIn');
+    localStorage.removeItem('nh_currentRole');
+    localStorage.removeItem('nh_currentUser');
+    setActiveTab('home');
   };
 
   // State Mutators / Action Handlers
@@ -396,6 +427,10 @@ export default function App() {
     { id: 'files', label: 'Document Vault', icon: FileText },
   ];
 
+  if (!isLoggedIn) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans select-none overflow-x-hidden antialiased">
       {/* Sticky Top Navbar */}
@@ -412,6 +447,7 @@ export default function App() {
         onTriggerCreatePost={() => setIsCreateModalOpen(true)}
         activeTab={activeTab}
         onTabChange={setActiveTab}
+        onLogout={handleLogout}
       />
 
       {/* Main Fullscreen Dashboard Layout Grid */}
@@ -610,6 +646,7 @@ export default function App() {
               onUpdateBio={handleUpdateBio}
               posts={posts}
               files={sharedFiles}
+              onLogout={handleLogout}
             />
           )}
         </main>

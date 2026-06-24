@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Bell, MapPin, ShieldAlert, BadgeCheck, Star, Sparkles, ChevronDown, BellOff, Trash2, CheckCircle2 } from 'lucide-react';
+import { Search, Bell, MapPin, ShieldAlert, BadgeCheck, Star, Sparkles, ChevronDown, BellOff, Trash2, CheckCircle2, LogOut } from 'lucide-react';
 import { User, Notification, UserRole } from '../types';
 import { SAMPLE_NEIGHBORHOODS } from '../data';
 
@@ -16,6 +16,7 @@ interface NavbarProps {
   onTriggerCreatePost: () => void;
   activeTab: string;
   onTabChange: (tab: string) => void;
+  onLogout?: () => void;
 }
 
 export default function Navbar({
@@ -31,6 +32,7 @@ export default function Navbar({
   onTriggerCreatePost,
   activeTab,
   onTabChange,
+  onLogout,
 }: NavbarProps) {
   const [showRoleMenu, setShowRoleMenu] = useState(false);
   const [showNeighbourhoodMenu, setShowNeighbourhoodMenu] = useState(false);
@@ -251,33 +253,45 @@ export default function Navbar({
           </div>
 
           {/* User Profile Overview */}
-          <div 
-            onClick={() => {
-              onTabChange('profile');
-            }} 
-            className="flex items-center gap-2 pl-2 border-l border-slate-200 cursor-pointer group"
-          >
-            <div className="relative">
-              <img
-                src={currentUser.avatar}
-                alt={currentUser.name}
-                className="w-8.5 h-8.5 rounded-full border border-indigo-200 object-cover group-hover:border-indigo-500 transition-colors"
-                referrerPolicy="no-referrer"
-              />
-              {currentUser.isVerified && (
-                <span className="absolute -bottom-0.5 -right-0.5 bg-indigo-600 text-white p-0.5 rounded-full border border-white">
-                  <BadgeCheck size={8} />
-                </span>
-              )}
-            </div>
-            <div className="hidden lg:block text-left">
-              <p className="text-xs font-bold text-slate-700 group-hover:text-indigo-600 transition-colors leading-none">{currentUser.name}</p>
-              <div className="flex items-center gap-1 mt-0.5">
-                <span className="text-[9px] font-semibold bg-indigo-50 text-indigo-700 px-1 py-0.2 rounded">
-                  Trust Score {currentUser.trustScore}%
-                </span>
+          <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
+            <div 
+              onClick={() => {
+                onTabChange('profile');
+              }} 
+              className="flex items-center gap-2 cursor-pointer group"
+            >
+              <div className="relative">
+                <img
+                  src={currentUser.avatar}
+                  alt={currentUser.name}
+                  className="w-8.5 h-8.5 rounded-full border border-indigo-200 object-cover group-hover:border-indigo-500 transition-colors"
+                  referrerPolicy="no-referrer"
+                />
+                {currentUser.isVerified && (
+                  <span className="absolute -bottom-0.5 -right-0.5 bg-indigo-600 text-white p-0.5 rounded-full border border-white">
+                    <BadgeCheck size={8} />
+                  </span>
+                )}
+              </div>
+              <div className="hidden lg:block text-left">
+                <p className="text-xs font-bold text-slate-700 group-hover:text-indigo-600 transition-colors leading-none">{currentUser.name}</p>
+                <div className="flex items-center gap-1 mt-0.5">
+                  <span className="text-[9px] font-semibold bg-indigo-50 text-indigo-700 px-1 py-0.2 rounded">
+                    Trust Score {currentUser.trustScore}%
+                  </span>
+                </div>
               </div>
             </div>
+
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                title="Log Out of NeighborHub"
+                className="p-1.5 ml-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
+              >
+                <LogOut size={15} />
+              </button>
+            )}
           </div>
         </div>
       </div>

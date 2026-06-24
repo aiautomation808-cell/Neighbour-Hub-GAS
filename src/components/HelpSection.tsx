@@ -1,5 +1,5 @@
 import React from 'react';
-import { HelpCircle, HandHelping, CheckCircle2, Clock, MapPin, User, AlertTriangle, ShieldCheck, FileText } from 'lucide-react';
+import { HelpCircle, HandHelping, CheckCircle2, Clock, MapPin, AlertTriangle, ShieldCheck, FileText } from 'lucide-react';
 import { HelpRequest, User } from '../types';
 
 interface HelpSectionProps {

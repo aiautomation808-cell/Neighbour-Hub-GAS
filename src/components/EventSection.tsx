@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Calendar as CalendarIcon, List, MapPin, User, BadgeAlert, FileText, BadgeCheck, CheckCircle2, Users, ArrowRight, X } from 'lucide-react';
+import { Calendar as CalendarIcon, List, MapPin, BadgeAlert, FileText, BadgeCheck, CheckCircle2, Users, ArrowRight, X } from 'lucide-react';
 import { NeighborhoodEvent, User } from '../types';
 
 interface EventSectionProps {
