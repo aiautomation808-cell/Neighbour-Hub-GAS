@@ -1,0 +1,6 @@
+{
+  "name": "NeighborHub",
+  "description": "A modern, mobile-first neighborhood community board web app.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
