@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ShieldCheck, Mail, Lock, Eye, EyeOff, LogIn, UserCheck, HelpCircle, Sparkles, UserPlus, MapPin, BadgeCheck, AlertCircle } from 'lucide-react';
 import { User, UserRole } from '../types';
 import { CURRENT_USER_PROFILES } from '../data';
+import { registerCustomUser, fetchCustomUsers } from '../lib/firebase';
 
 interface LoginPageProps {
   onLogin: (user: User) => void;
@@ -16,6 +17,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   // Registration states
   const [regName, setRegName] = useState('');
@@ -27,46 +29,55 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
   const [regRole, setRegRole] = useState<'resident' | 'admin'>('resident');
   const [regSuccess, setRegSuccess] = useState(false);
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setLoading(true);
 
-    // Check custom registered users first (stored in localStorage)
-    const customUsersRaw = localStorage.getItem('nh_custom_users');
-    const customUsers: User[] = customUsersRaw ? JSON.parse(customUsersRaw) : [];
-    
-    // Find matching user
-    const matchedCustom = customUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (matchedCustom) {
-      // In our mock sandbox, any password works for custom register, but we check if entered
-      if (!password.trim()) {
-        setError('Password is required');
+    try {
+      // Check custom registered users first from Firestore
+      const customUsers = await fetchCustomUsers();
+      
+      // Find matching user
+      const matchedCustom = customUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
+      if (matchedCustom) {
+        if (!password.trim()) {
+          setError('Password is required');
+          setLoading(false);
+          return;
+        }
+        onLogin(matchedCustom);
+        setLoading(false);
         return;
       }
-      onLogin(matchedCustom);
-      return;
-    }
 
-    // Otherwise check default hardcoded profiles
-    if (email.toLowerCase() === 'sarah.j@gmail.local' && password === 'password123') {
-      onLogin(CURRENT_USER_PROFILES.resident);
-    } else if (email.toLowerCase() === 'elena.admin@neighborhub.org' && password === 'admin123') {
-      onLogin(CURRENT_USER_PROFILES.admin);
-    } else if (email.toLowerCase() === 'marcus.v@neighborhub.local' && password === 'mod123') {
-      onLogin(CURRENT_USER_PROFILES.moderator);
-    } else if (email.toLowerCase() === 'guest@neighborhub.local' && password === 'guest123') {
-      onLogin(CURRENT_USER_PROFILES.guest);
-    } else {
-      setError('Invalid email address or passcode. Please check credentials or register a new profile.');
+      // Otherwise check default hardcoded profiles
+      if (email.toLowerCase() === 'sarah.j@gmail.local' && password === 'password123') {
+        onLogin(CURRENT_USER_PROFILES.resident);
+      } else if (email.toLowerCase() === 'elena.admin@neighborhub.org' && password === 'admin123') {
+        onLogin(CURRENT_USER_PROFILES.admin);
+      } else if (email.toLowerCase() === 'marcus.v@neighborhub.local' && password === 'mod123') {
+        onLogin(CURRENT_USER_PROFILES.moderator);
+      } else if (email.toLowerCase() === 'guest@neighborhub.local' && password === 'guest123') {
+        onLogin(CURRENT_USER_PROFILES.guest);
+      } else {
+        setError('Invalid email address or passcode. Please check credentials or register a new profile.');
+      }
+    } catch (err) {
+      console.error(err);
+      setError('An error occurred during sign-in. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleRegisterSubmit = (e: React.FormEvent) => {
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!regName.trim() || !regEmail.trim() || !regPassword.trim()) {
       setError('Please fill in all required fields');
       return;
     }
+    setLoading(true);
 
     // Build registered user profile
     const newUser: User = {
@@ -88,26 +99,30 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
       role: regRole
     };
 
-    // Store custom user in localStorage so they can log in
-    const customUsersRaw = localStorage.getItem('nh_custom_users');
-    const customUsers: User[] = customUsersRaw ? JSON.parse(customUsersRaw) : [];
-    customUsers.push(newUser);
-    localStorage.setItem('nh_custom_users', JSON.stringify(customUsers));
+    try {
+      // Store custom user in Firestore so they can log in from any device
+      await registerCustomUser(newUser);
 
-    setRegSuccess(true);
-    setTimeout(() => {
-      // Auto fill and switch to login tab
-      setEmail(regEmail);
-      setPassword(regPassword);
-      setActiveTab('login');
-      setRegSuccess(false);
-      // Reset inputs
-      setRegName('');
-      setRegEmail('');
-      setRegPassword('');
-      setRegBio('');
-      setRegSkills('');
-    }, 1500);
+      setRegSuccess(true);
+      setTimeout(() => {
+        // Auto fill and switch to login tab
+        setEmail(regEmail);
+        setPassword(regPassword);
+        setActiveTab('login');
+        setRegSuccess(false);
+        // Reset inputs
+        setRegName('');
+        setRegEmail('');
+        setRegPassword('');
+        setRegBio('');
+        setRegSkills('');
+      }, 1500);
+    } catch (err) {
+      console.error(err);
+      setError('Failed to create account. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

@@ -10,6 +10,13 @@ import {
   INITIAL_MARKETPLACE, INITIAL_ALERTS, INITIAL_REPORTS, 
   INITIAL_NOTIFICATIONS, INITIAL_AUDIT_LOGS, SAMPLE_NEIGHBORHOODS 
 } from './data';
+import { 
+  seedDatabase, 
+  subscribeToCollection, 
+  addFirestoreDoc, 
+  updateFirestoreDoc, 
+  deleteFirestoreDoc 
+} from './lib/firebase';
 
 import Navbar from './components/Navbar';
 import CreatePostModal from './components/CreatePostModal';
@@ -50,7 +57,7 @@ export default function App() {
     return CURRENT_USER_PROFILES.resident;
   });
 
-  // Core Data States (Initialized from localStorage if present, else default)
+  // Core Data States (Synchronized with Firestore in real-time)
   const [posts, setPosts] = useState<Post[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
   const [events, setEvents] = useState<NeighborhoodEvent[]>([]);
@@ -63,79 +70,56 @@ export default function App() {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [sharedFiles, setSharedFiles] = useState<FileAttachment[]>([]);
 
+  // DB initialization status
+  const [isInitializing, setIsInitializing] = useState(true);
+
   // Modals controller
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-  // Load state from local storage or defaults on mount
+  // Initialize and seed DB once on mount
   useEffect(() => {
-    const lPosts = localStorage.getItem('nh_posts');
-    const lComments = localStorage.getItem('nh_comments');
-    const lEvents = localStorage.getItem('nh_events');
-    const lLostFound = localStorage.getItem('nh_lostfound');
-    const lHelp = localStorage.getItem('nh_help');
-    const lMarket = localStorage.getItem('nh_market');
-    const lAlerts = localStorage.getItem('nh_alerts');
-    const lReports = localStorage.getItem('nh_reports');
-    const lNotifs = localStorage.getItem('nh_notifs');
-    const lAudit = localStorage.getItem('nh_audit');
-    const lFiles = localStorage.getItem('nh_files');
-
-    if (lPosts) setPosts(JSON.parse(lPosts)); else setPosts(INITIAL_POSTS);
-    if (lComments) setComments(JSON.parse(lComments)); else setComments(INITIAL_COMMENTS);
-    if (lEvents) setEvents(JSON.parse(lEvents)); else setEvents(INITIAL_EVENTS);
-    if (lLostFound) setLostFound(JSON.parse(lLostFound)); else setLostFound(INITIAL_LOST_FOUND);
-    if (lHelp) setHelpRequests(JSON.parse(lHelp)); else setHelpRequests(INITIAL_HELP_REQUESTS);
-    if (lMarket) setMarketplace(JSON.parse(lMarket)); else setMarketplace(INITIAL_MARKETPLACE);
-    if (lAlerts) setAlerts(JSON.parse(lAlerts)); else setAlerts(INITIAL_ALERTS);
-    if (lReports) setReports(JSON.parse(lReports)); else setReports(INITIAL_REPORTS);
-    if (lNotifs) setNotifications(JSON.parse(lNotifs)); else setNotifications(INITIAL_NOTIFICATIONS);
-    if (lAudit) setAuditLogs(JSON.parse(lAudit)); else setAuditLogs(INITIAL_AUDIT_LOGS);
-
-    // Grab file attachments from initial posts and events to pre-fill Shared File board
-    if (lFiles) {
-      setSharedFiles(JSON.parse(lFiles));
-    } else {
-      const initialAttachments: FileAttachment[] = [];
-      INITIAL_POSTS.forEach(p => p.fileAttachments.forEach(att => initialAttachments.push(att)));
-      INITIAL_EVENTS.forEach(e => e.attachedFiles.forEach(att => initialAttachments.push(att)));
-      setSharedFiles(initialAttachments);
-    }
+    const initDb = async () => {
+      try {
+        await seedDatabase();
+      } catch (err) {
+        console.error("Failed to seed database:", err);
+      } finally {
+        setIsInitializing(false);
+      }
+    };
+    initDb();
   }, []);
 
-  // Save states to local storage on update
+  // Set up Firebase Real-Time Subscriptions
   useEffect(() => {
-    if (posts.length > 0) localStorage.setItem('nh_posts', JSON.stringify(posts));
-  }, [posts]);
-  useEffect(() => {
-    if (comments.length > 0) localStorage.setItem('nh_comments', JSON.stringify(comments));
-  }, [comments]);
-  useEffect(() => {
-    if (events.length > 0) localStorage.setItem('nh_events', JSON.stringify(events));
-  }, [events]);
-  useEffect(() => {
-    if (lostFound.length > 0) localStorage.setItem('nh_lostfound', JSON.stringify(lostFound));
-  }, [lostFound]);
-  useEffect(() => {
-    if (helpRequests.length > 0) localStorage.setItem('nh_help', JSON.stringify(helpRequests));
-  }, [helpRequests]);
-  useEffect(() => {
-    if (marketplace.length > 0) localStorage.setItem('nh_market', JSON.stringify(marketplace));
-  }, [marketplace]);
-  useEffect(() => {
-    if (alerts.length > 0) localStorage.setItem('nh_alerts', JSON.stringify(alerts));
-  }, [alerts]);
-  useEffect(() => {
-    if (reports.length > 0) localStorage.setItem('nh_reports', JSON.stringify(reports));
-  }, [reports]);
-  useEffect(() => {
-    if (notifications.length > 0) localStorage.setItem('nh_notifs', JSON.stringify(notifications));
-  }, [notifications]);
-  useEffect(() => {
-    if (auditLogs.length > 0) localStorage.setItem('nh_audit', JSON.stringify(auditLogs));
-  }, [auditLogs]);
-  useEffect(() => {
-    if (sharedFiles.length > 0) localStorage.setItem('nh_files', JSON.stringify(sharedFiles));
-  }, [sharedFiles]);
+    if (isInitializing) return;
+
+    const unsubPosts = subscribeToCollection<Post>('posts', setPosts, 'timestamp', 'desc');
+    const unsubComments = subscribeToCollection<Comment>('comments', setComments, 'timestamp', 'asc');
+    const unsubEvents = subscribeToCollection<NeighborhoodEvent>('events', setEvents, 'date', 'asc');
+    const unsubLostFound = subscribeToCollection<LostFoundItem>('lost_found', setLostFound, 'date', 'desc');
+    const unsubHelp = subscribeToCollection<HelpRequest>('help_requests', setHelpRequests, 'urgency', 'desc');
+    const unsubMarketplace = subscribeToCollection<MarketplaceListing>('marketplace', setMarketplace, 'id', 'desc');
+    const unsubAlerts = subscribeToCollection<SafetyAlert>('alerts', setAlerts, 'timestamp', 'desc');
+    const unsubReports = subscribeToCollection<Report>('reports', setReports, 'timestamp', 'desc');
+    const unsubNotifications = subscribeToCollection<Notification>('notifications', setNotifications, 'timestamp', 'desc');
+    const unsubAuditLogs = subscribeToCollection<AuditLog>('audit_logs', setAuditLogs, 'timestamp', 'desc');
+    const unsubFiles = subscribeToCollection<FileAttachment>('shared_files', setSharedFiles, 'name', 'asc');
+
+    return () => {
+      unsubPosts();
+      unsubComments();
+      unsubEvents();
+      unsubLostFound();
+      unsubHelp();
+      unsubMarketplace();
+      unsubAlerts();
+      unsubReports();
+      unsubNotifications();
+      unsubAuditLogs();
+      unsubFiles();
+    };
+  }, [isInitializing]);
 
   // Handle Role Shift
   const handleRoleChange = (role: UserRole) => {
@@ -164,20 +148,20 @@ export default function App() {
     setActiveTab('home');
   };
 
-  // State Mutators / Action Handlers
+  // State Mutators / Action Handlers via Firestore
 
   // 1. Post Created
-  const handlePostCreated = (newPost: Post) => {
-    setPosts((prev) => [newPost, ...prev]);
+  const handlePostCreated = async (newPost: Post) => {
+    await addFirestoreDoc('posts', newPost.id, newPost);
 
     // Automatically index attached files to shared document board
     if (newPost.fileAttachments.length > 0) {
-      newPost.fileAttachments.forEach((att) => {
-        handleFileAdded({
+      for (const att of newPost.fileAttachments) {
+        await handleFileAdded({
           ...att,
           category: att.category || 'Forms'
         });
-      });
+      }
     }
 
     // Add Audit Log
@@ -187,16 +171,16 @@ export default function App() {
   };
 
   // 2. Event Created
-  const handleEventCreated = (newEvent: NeighborhoodEvent) => {
-    setEvents((prev) => [newEvent, ...prev]);
+  const handleEventCreated = async (newEvent: NeighborhoodEvent) => {
+    await addFirestoreDoc('events', newEvent.id, newEvent);
 
     if (newEvent.attachedFiles.length > 0) {
-      newEvent.attachedFiles.forEach((att) => {
-        handleFileAdded({
+      for (const att of newEvent.attachedFiles) {
+        await handleFileAdded({
           ...att,
           category: att.category || 'Event flyers'
         });
-      });
+      }
     }
 
     addAuditLog(`Organized community event`, newEvent.title);
@@ -204,60 +188,57 @@ export default function App() {
   };
 
   // 3. Lost & Found Item Created
-  const handleLostFoundCreated = (newItem: LostFoundItem) => {
-    setLostFound((prev) => [newItem, ...prev]);
+  const handleLostFoundCreated = async (newItem: LostFoundItem) => {
+    await addFirestoreDoc('lost_found', newItem.id, newItem);
     addAuditLog(`Filed missing property report`, newItem.title);
     addNotification(`Alert: ${newItem.type.toUpperCase()} item reported: ${newItem.title}`, 'lost');
   };
 
   // 4. Help Request Created
-  const handleHelpCreated = (newHelp: HelpRequest) => {
-    setHelpRequests((prev) => [newHelp, ...prev]);
+  const handleHelpCreated = async (newHelp: HelpRequest) => {
+    await addFirestoreDoc('help_requests', newHelp.id, newHelp);
     addAuditLog(`Filed assistance request`, newHelp.title);
     addNotification(`Urgent: Neighborhood support request: ${newHelp.title}`, 'help');
   };
 
   // 5. Marketplace Listing Created
-  const handleMarketplaceCreated = (newListing: MarketplaceListing) => {
-    setMarketplace((prev) => [newListing, ...prev]);
+  const handleMarketplaceCreated = async (newListing: MarketplaceListing) => {
+    await addFirestoreDoc('marketplace', newListing.id, newListing);
     addAuditLog(`Listed items on swap board`, newListing.title);
   };
 
   // 6. Safety Alert Created
-  const handleAlertCreated = (newAlert: SafetyAlert) => {
-    setAlerts((prev) => [newAlert, ...prev]);
+  const handleAlertCreated = async (newAlert: SafetyAlert) => {
+    await addFirestoreDoc('alerts', newAlert.id, newAlert);
     addAuditLog(`Broadcasted critical warning`, newAlert.title);
     addNotification(`EMERGENCY: ${newAlert.title}`, 'alert');
   };
 
   // 7. Directly adding file to Shared Document Board
-  const handleFileAdded = (newFile: FileAttachment) => {
-    setSharedFiles((prev) => {
-      if (prev.some((f) => f.id === newFile.id)) return prev;
-      return [newFile, ...prev];
-    });
+  const handleFileAdded = async (newFile: FileAttachment) => {
+    await addFirestoreDoc('shared_files', newFile.id, newFile);
     addNotification(`New document uploaded to library: ${newFile.name}`, 'upload');
   };
 
   // Like a post
-  const handleLikePost = (postId: string) => {
-    setPosts((prev) => 
-      prev.map((post) => {
-        if (post.id !== postId) return post;
-        const alreadyLiked = post.likedBy.includes(currentUser.id);
-        return {
-          ...post,
-          likes: alreadyLiked ? post.likes - 1 : post.likes + 1,
-          likedBy: alreadyLiked 
-            ? post.likedBy.filter(id => id !== currentUser.id) 
-            : [...post.likedBy, currentUser.id]
-        };
-      })
-    );
+  const handleLikePost = async (postId: string) => {
+    const post = posts.find((p) => p.id === postId);
+    if (post) {
+      const alreadyLiked = post.likedBy.includes(currentUser.id);
+      const updatedLikes = alreadyLiked ? post.likes - 1 : post.likes + 1;
+      const updatedLikedBy = alreadyLiked 
+        ? post.likedBy.filter(id => id !== currentUser.id) 
+        : [...post.likedBy, currentUser.id];
+      
+      await updateFirestoreDoc('posts', postId, {
+        likes: updatedLikes,
+        likedBy: updatedLikedBy
+      });
+    }
   };
 
   // Add Comment
-  const handleAddComment = (postId: string, text: string) => {
+  const handleAddComment = async (postId: string, text: string) => {
     const newComment: Comment = {
       id: `comment_${Date.now()}`,
       postId,
@@ -269,20 +250,27 @@ export default function App() {
       text
     };
 
-    setComments((prev) => [...prev, newComment]);
-    setPosts((prev) => 
-      prev.map((p) => p.id === postId ? { ...p, commentsCount: p.commentsCount + 1 } : p)
-    );
+    await addFirestoreDoc('comments', newComment.id, newComment);
+    const post = posts.find((p) => p.id === postId);
+    if (post) {
+      await updateFirestoreDoc('posts', postId, {
+        commentsCount: post.commentsCount + 1
+      });
+    }
   };
 
   // Delete Post
-  const handleDeletePost = (postId: string) => {
-    setPosts((prev) => prev.filter(p => p.id !== postId));
+  const handleDeletePost = async (postId: string) => {
+    await deleteFirestoreDoc('posts', postId);
+    const relatedComments = comments.filter((c) => c.postId === postId);
+    for (const c of relatedComments) {
+      await deleteFirestoreDoc('comments', c.id);
+    }
     addAuditLog(`Removed post from server`, postId);
   };
 
   // File Claim/Report Inappropriate content
-  const handleReportItem = (itemId: string, itemType: 'post' | 'comment', title: string, reason: string) => {
+  const handleReportItem = async (itemId: string, itemType: 'post' | 'comment', title: string, reason: string) => {
     const newReport: Report = {
       id: `rep_${Date.now()}`,
       itemId,
@@ -293,73 +281,68 @@ export default function App() {
       timestamp: new Date().toISOString(),
       status: 'pending'
     };
-    setReports((prev) => [newReport, ...prev]);
+    await addFirestoreDoc('reports', newReport.id, newReport);
   };
 
   // RSVP Event
-  const handleRsvpEvent = (eventId: string) => {
-    setEvents((prev) => 
-      prev.map((ev) => {
-        if (ev.id !== eventId) return ev;
-        const isGoing = ev.rsvps.includes(currentUser.name);
-        return {
-          ...ev,
-          rsvps: isGoing 
-            ? ev.rsvps.filter(n => n !== currentUser.name) 
-            : [...ev.rsvps, currentUser.name],
-          rsvpCount: isGoing ? ev.rsvpCount - 1 : ev.rsvpCount + 1
-        };
-      })
-    );
+  const handleRsvpEvent = async (eventId: string) => {
+    const ev = events.find((e) => e.id === eventId);
+    if (ev) {
+      const isGoing = ev.rsvps.includes(currentUser.name);
+      const updatedRsvps = isGoing 
+        ? ev.rsvps.filter(n => n !== currentUser.name) 
+        : [...ev.rsvps, currentUser.name];
+      const updatedRsvpCount = isGoing ? ev.rsvpCount - 1 : ev.rsvpCount + 1;
+
+      await updateFirestoreDoc('events', eventId, {
+        rsvps: updatedRsvps,
+        rsvpCount: updatedRsvpCount
+      });
+    }
   };
 
   // Volunteer Pledging
-  const handleVolunteer = (helpId: string, volunteerName: string) => {
-    setHelpRequests((prev) => 
-      prev.map((help) => {
-        if (help.id !== helpId) return help;
-        const hasVolunteered = help.volunteers.includes(volunteerName);
-        return {
-          ...help,
-          volunteers: hasVolunteered 
-            ? help.volunteers.filter(v => v !== volunteerName) 
-            : [...help.volunteers, volunteerName],
-          volunteersCount: hasVolunteered ? help.volunteersCount - 1 : help.volunteersCount + 1
-        };
-      })
-    );
+  const handleVolunteer = async (helpId: string, volunteerName: string) => {
+    const help = helpRequests.find((h) => h.id === helpId);
+    if (help) {
+      const hasVolunteered = help.volunteers.includes(volunteerName);
+      const updatedVolunteers = hasVolunteered 
+        ? help.volunteers.filter(v => v !== volunteerName) 
+        : [...help.volunteers, volunteerName];
+      const updatedVolunteersCount = hasVolunteered ? help.volunteersCount - 1 : help.volunteersCount + 1;
+
+      await updateFirestoreDoc('help_requests', helpId, {
+        volunteers: updatedVolunteers,
+        volunteersCount: updatedVolunteersCount
+      });
+    }
   };
 
   // Resolve Help request
-  const handleResolveHelp = (helpId: string) => {
-    setHelpRequests((prev) => 
-      prev.map((h) => h.id === helpId ? { ...h, status: 'Resolved' } : h)
-    );
+  const handleResolveHelp = async (helpId: string) => {
+    await updateFirestoreDoc('help_requests', helpId, { status: 'Resolved' });
     addAuditLog(`Marked assistance request resolved`, helpId);
   };
 
   // Update Lost & Found status
-  const handleUpdateLfStatus = (itemId: string, newStatus: 'Open' | 'Recovered' | 'Claimed') => {
-    setLostFound((prev) => 
-      prev.map((item) => item.id === itemId ? { ...item, status: newStatus } : item)
-    );
+  const handleUpdateLfStatus = async (itemId: string, newStatus: 'Open' | 'Recovered' | 'Claimed') => {
+    await updateFirestoreDoc('lost_found', itemId, { status: newStatus });
     addAuditLog(`Updated missing report status to ${newStatus}`, itemId);
   };
 
   // Resolve moderation reports
-  const handleResolveReport = (reportId: string, actionType: 'dismiss' | 'remove_item' | 'ban_user') => {
-    setReports((prev) => 
-      prev.map((rep) => rep.id === reportId ? { ...rep, status: actionType === 'dismiss' ? 'dismissed' : 'resolved' } : rep)
-    );
-
+  const handleResolveReport = async (reportId: string, actionType: 'dismiss' | 'remove_item' | 'ban_user') => {
     const reportObj = reports.find(r => r.id === reportId);
     if (!reportObj) return;
 
+    const updatedStatus = actionType === 'dismiss' ? 'dismissed' : 'resolved';
+    await updateFirestoreDoc('reports', reportId, { status: updatedStatus });
+
     if (actionType === 'remove_item') {
       if (reportObj.itemType === 'post') {
-        setPosts((prev) => prev.filter(p => p.id !== reportObj.itemId));
+        await deleteFirestoreDoc('posts', reportObj.itemId);
       } else if (reportObj.itemType === 'comment') {
-        setComments((prev) => prev.filter(c => c.id !== reportObj.itemId));
+        await deleteFirestoreDoc('comments', reportObj.itemId);
       }
       addAuditLog(`Moderator action: Content Removed`, reportObj.itemTitle);
     } else if (actionType === 'ban_user') {
@@ -370,27 +353,34 @@ export default function App() {
   };
 
   // Delete file from library
-  const handleRemoveFile = (fileId: string) => {
-    setSharedFiles((prev) => prev.filter((f) => f.id !== fileId));
+  const handleRemoveFile = async (fileId: string) => {
+    await deleteFirestoreDoc('shared_files', fileId);
     addAuditLog(`Removed shared file from storage`, fileId);
   };
 
   // Update profile bio
-  const handleUpdateBio = (newBio: string) => {
+  const handleUpdateBio = async (newBio: string) => {
     setCurrentUser((prev) => ({ ...prev, bio: newBio }));
+    if (currentUser.id.startsWith('custom_user_')) {
+      await updateFirestoreDoc('custom_users', currentUser.id, { bio: newBio });
+    }
   };
 
   // Notifications clearance
-  const handleClearAllNotifications = () => {
-    setNotifications((prev) => prev.map(n => ({ ...n, isRead: true })));
+  const handleClearAllNotifications = async () => {
+    for (const n of notifications) {
+      if (!n.isRead) {
+        await updateFirestoreDoc('notifications', n.id, { isRead: true });
+      }
+    }
   };
 
-  const handleMarkNotificationRead = (notifId: string) => {
-    setNotifications((prev) => prev.map(n => n.id === notifId ? { ...n, isRead: true } : n));
+  const handleMarkNotificationRead = async (notifId: string) => {
+    await updateFirestoreDoc('notifications', notifId, { isRead: true });
   };
 
   // Helper function to append to audit log list
-  const addAuditLog = (action: string, targetItem: string) => {
+  const addAuditLog = async (action: string, targetItem: string) => {
     const newLog: AuditLog = {
       id: `aud_${Date.now()}`,
       moderatorName: currentUser.name,
@@ -398,11 +388,11 @@ export default function App() {
       targetItem,
       timestamp: new Date().toISOString()
     };
-    setAuditLogs((prev) => [newLog, ...prev]);
+    await addFirestoreDoc('audit_logs', newLog.id, newLog);
   };
 
   // Helper function to insert notification
-  const addNotification = (text: string, type: Notification['type']) => {
+  const addNotification = async (text: string, type: Notification['type']) => {
     const newNotif: Notification = {
       id: `notif_${Date.now()}`,
       userId: currentUser.id,
@@ -411,7 +401,7 @@ export default function App() {
       timestamp: new Date().toISOString(),
       isRead: false
     };
-    setNotifications((prev) => [newNotif, ...prev]);
+    await addFirestoreDoc('notifications', newNotif.id, newNotif);
   };
 
   // Left Sidebar Rails Nav Links
@@ -429,6 +419,20 @@ export default function App() {
 
   if (!isLoggedIn) {
     return <LoginPage onLogin={handleLogin} />;
+  }
+
+  if (isInitializing) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center font-sans">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+          <div className="text-center">
+            <h3 className="text-sm font-bold text-slate-800">Connecting to NeighborHub Cloud</h3>
+            <p className="text-xs text-slate-500">Synchronizing community boards in real-time...</p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
