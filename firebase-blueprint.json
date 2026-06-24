@@ -1,0 +1,91 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Custom registered neighborhood user profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "avatarUrl": { "type": "string" },
+        "role": { "type": "string", "enum": ["guest", "resident", "admin"] },
+        "bio": { "type": "string" },
+        "joinedDate": { "type": "string" },
+        "verified": { "type": "boolean" },
+        "skills": { "type": "string" }
+      },
+      "required": ["id", "name", "email", "role"]
+    },
+    "Post": {
+      "title": "Post",
+      "description": "A message or notice posted to the community board",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "authorAvatar": { "type": "string" },
+        "category": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "likes": { "type": "number" },
+        "commentsCount": { "type": "number" },
+        "likedBy": { "type": "array" },
+        "fileAttachments": { "type": "array" }
+      },
+      "required": ["id", "authorId", "authorName", "category", "title", "content", "timestamp"]
+    }
+  },
+  "firestore": {
+    "posts": {
+      "schema": "Post",
+      "description": "Community bulletin board posts"
+    },
+    "comments": {
+      "schema": "object",
+      "description": "Comments on community posts"
+    },
+    "events": {
+      "schema": "object",
+      "description": "Community events and RSVPs"
+    },
+    "lost_found": {
+      "schema": "object",
+      "description": "Lost and found items reported"
+    },
+    "help_requests": {
+      "schema": "object",
+      "description": "Neighbor support requests and volunteers"
+    },
+    "marketplace": {
+      "schema": "object",
+      "description": "Local swap and marketplace items"
+    },
+    "alerts": {
+      "schema": "object",
+      "description": "Safety and critical alerts"
+    },
+    "reports": {
+      "schema": "object",
+      "description": "Moderator flag reports"
+    },
+    "notifications": {
+      "schema": "object",
+      "description": "User notifications"
+    },
+    "audit_logs": {
+      "schema": "object",
+      "description": "Moderator audit trails"
+    },
+    "shared_files": {
+      "schema": "object",
+      "description": "Document vault files"
+    },
+    "custom_users": {
+      "schema": "User",
+      "description": "User profile credentials"
+    }
+  }
+}

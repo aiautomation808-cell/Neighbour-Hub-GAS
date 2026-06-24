@@ -1,3 +1,4 @@
+// NeighborHub Firebase Integration Service
 import { initializeApp } from 'firebase/app';
 import { 
   getFirestore, 
@@ -57,6 +58,50 @@ const app = initializeApp(firebaseConfig);
 // Initialize Firestore with specific Database ID
 export const db = getFirestore(app, "ai-studio-b8c5b7e9-0271-4e9c-bf6d-87bc77cadd59");
 
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+export interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  }
+}
+
+export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: null,
+      email: null,
+      emailVerified: null,
+      isAnonymous: null,
+      tenantId: null,
+      providerInfo: []
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
+
 /**
  * Seeds a collection with default initial data if it contains 0 documents.
  */
@@ -76,7 +121,7 @@ async function seedCollectionIfEmpty<T extends { id: string }>(
       }
     }
   } catch (error) {
-    console.error(`Error seeding collection '${collectionName}':`, error);
+    handleFirestoreError(error, OperationType.WRITE, collectionName);
   }
 }
 
@@ -134,7 +179,7 @@ export function subscribeToCollection<T>(
     });
     onUpdate(items);
   }, (err) => {
-    console.error(`Subscription error for collection '${collectionName}':`, err);
+    handleFirestoreError(err, OperationType.LIST, collectionName);
   });
 }
 
@@ -147,8 +192,7 @@ export async function addFirestoreDoc(collectionName: string, id: string, data: 
     const docRef = doc(db, collectionName, id);
     await setDoc(docRef, { ...data, id });
   } catch (error) {
-    console.error(`Error adding document in '${collectionName}':`, error);
-    throw error;
+    handleFirestoreError(error, OperationType.CREATE, `${collectionName}/${id}`);
   }
 }
 
@@ -157,8 +201,7 @@ export async function updateFirestoreDoc(collectionName: string, id: string, dat
     const docRef = doc(db, collectionName, id);
     await updateDoc(docRef, data);
   } catch (error) {
-    console.error(`Error updating document in '${collectionName}':`, error);
-    throw error;
+    handleFirestoreError(error, OperationType.UPDATE, `${collectionName}/${id}`);
   }
 }
 
@@ -167,8 +210,7 @@ export async function deleteFirestoreDoc(collectionName: string, id: string) {
     const docRef = doc(db, collectionName, id);
     await deleteDoc(docRef);
   } catch (error) {
-    console.error(`Error deleting document in '${collectionName}':`, error);
-    throw error;
+    handleFirestoreError(error, OperationType.DELETE, `${collectionName}/${id}`);
   }
 }
 
@@ -180,8 +222,7 @@ export async function registerCustomUser(user: User) {
   try {
     await addFirestoreDoc('custom_users', user.id, user);
   } catch (error) {
-    console.error("Error registering custom user:", error);
-    throw error;
+    handleFirestoreError(error, OperationType.CREATE, `custom_users/${user.id}`);
   }
 }
 
@@ -195,7 +236,7 @@ export async function fetchCustomUsers(): Promise<User[]> {
     });
     return users;
   } catch (error) {
-    console.error("Error fetching custom users:", error);
+    handleFirestoreError(error, OperationType.GET, 'custom_users');
     return [];
   }
 }
